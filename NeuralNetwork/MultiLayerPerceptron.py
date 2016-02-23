@@ -2,6 +2,8 @@ import os
 import sys
 import timeit
 
+import numpy
+
 import theano
 import theano.tensor as T
 
@@ -35,6 +37,14 @@ class InputLayer(object):
 		self.n_in = n_in
 		self.n_out = n_out
 		self.pre_function = pre_function
+		
+	def Show(self):
+		print ""
+		print "InputLayer Object"
+		print "Input Dimension: ", self.n_in
+		print "Output Dimension: ", self.n_out
+		print "Pre-Processing Function: ", self.pre_function
+		print ""
 
 class HiddenLayer(object):
 	""" Hidden Layer Class """
@@ -67,10 +77,54 @@ class HiddenLayer(object):
 		
 		self.n_in = n_in
 		self.n_out = n_out
-		self.W = W
-		self.b = b
 		self.activation = activation
 		
+		
+		# Initializing Weights
+		
+		# `W` is initialized with `W_values` which is uniformely sampled
+        # from sqrt(-6./(n_in+n_hidden)) and sqrt(6./(n_in+n_hidden))
+		
+		if W is None:
+			W_values = numpy.asarray(rng.uniform(
+			low=-numpy.sqrt(6. / (n_in + n_out)),
+			high=numpy.sqrt(6. / (n_in + n_out)),
+			size=(n_in, n_out)),
+			dtype=theano.config.floatX)
+			
+			if activation == theano.tensor.nnet.sigmoid:
+				W_values *= 4
+			
+			# Note : optimal initialization of weights is dependent on the
+        	#        activation function used (among other things).
+        	#        For example, results presented in [Xavier10] suggest that you
+        	#        should use 4 times larger initial weights for sigmoid
+        	#        compared to tanh
+        	#        We have no info for other function, so we use the same as
+        	#        tanh.
+			
+			W = theano.shared(value=W_values, name='W', borrow=True)
+		self.W = W
+		self.W_init = W_values
+		
+		
+		# 'b' is initialized with 'b_values' which is a zero-vector
+		
+		if b is None:
+			b_values = numpy.zeros((n_out,), dtype=theano.config.floatX)
+			b = theano.shared(value=b_values, name='b', borrow=True)
+		self.b = b
+		
+		
+	
+	def Show(self):
+		print ""
+		print "HiddenLayer Object"
+		print "Input Dimension: ", self.n_in
+		print "Output Dimension: ", self.n_out
+		print "Activation Function: ", self.activation
+		print "Initialization Function: ", "Random"
+		print ""
     	
 class OutputLayer(object):
 	""" Output Layer Class """
@@ -106,7 +160,57 @@ class OutputLayer(object):
 		self.W = W
 		self.b = b
 		self.activation = activation
+		
+		
+		# Initializing Weights
+		
+		# `W` is initialized with `W_values` which is uniformely sampled
+        # from sqrt(-6./(n_in+n_hidden)) and sqrt(6./(n_in+n_hidden))
+		
+		if W is None:
+			W_values = numpy.asarray(rng.uniform(
+			low=-numpy.sqrt(6. / (n_in + n_out)),
+			high=numpy.sqrt(6. / (n_in + n_out)),
+			size=(n_in, n_out)),
+			dtype=theano.config.floatX)
 			
+			if activation == theano.tensor.nnet.sigmoid:
+				W_values *= 4
+			
+			# Note : optimal initialization of weights is dependent on the
+        	#        activation function used (among other things).
+        	#        For example, results presented in [Xavier10] suggest that you
+        	#        should use 4 times larger initial weights for sigmoid
+        	#        compared to tanh
+        	#        We have no info for other function, so we use the same as
+        	#        tanh.
+			
+			W = theano.shared(value=W_values, name='W', borrow=True)
+		self.W = W
+		self.W_init = W_values
+		
+		
+		# 'b' is initialized with 'b_values' which is a zero-vector
+		
+		if b is None:
+			b_values = numpy.zeros((n_out,), dtype=theano.config.floatX)
+			b = theano.shared(value=b_values, name='b', borrow=True)
+		self.b = b
+		
+	def Show(self):
+		print ""
+		print "OutputLayer Object"
+		print "Input Dimension: ", self.n_in
+		print "Output Dimension: ", self.n_out
+		print "Activation Function: ", self.activation
+		print "Initialization Function: ", "Random"
+		print ""
+		
+		
+class TrainParameters(object):
+	def __init__(self,show=False):
+		""" Train Parameters Class """
+		
 class MLP(object):
     """ Multi-Layer Perceptron Class """
     
@@ -162,12 +266,34 @@ class MLP(object):
     	show_str = []
     	
     	# Title
-    	show_str = "\nNeural Network Object \n"
-    	show_str = show_str +"Inputs: "+str(self.InputLayer.n_in)+"\n"
+    	print  "\nNeural Network Object "
+    	self.InputLayer.Show()
     	for i in range(len(self.HiddenLayer)):
-    		show_str = show_str +"HiddenLayer["+str(i)+"]: "+str(self.HiddenLayer[i].n_out)+"\n"
-    	show_str = show_str+"Outputs: "+str(self.OutputLayer.n_out)+"\n"
-
-    	print show_str
+    		print "HiddenLayer["+str(i)+"]:"
+    		self.HiddenLayer[i].Show()
+    	self.OutputLayer.Show()
+    	
+    def Train(self, input=None, target=None, trn_params=None):
+    	print "Train Function"
+    	
+    	"""
+    	Params: 
+    	
+    	input: vector of natural numbers
+    	desc: Vector with inputs
+    	
+    	target: vector of natural numbers
+    	desc: Vector with targets
+    	
+    	trn_params: Object of trn_params class
+    	desc: Same as TrainParameters Class
+    	
+    	"""
+    	
+    	self.input = input
+    	self.target = target
+    	self.trn_params = trn_params
+    	
+    	
     	
     	
