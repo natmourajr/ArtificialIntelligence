@@ -45,7 +45,12 @@ class InputLayer(object):
 		print "Output Dimension: ", self.n_out
 		print "Pre-Processing Function: ", self.pre_function
 		print ""
-
+		
+	def GetOutput(self,input, show=False):
+		if show:
+			print "InputLayer: GetOutput Function"
+		
+					
 class HiddenLayer(object):
 	""" Hidden Layer Class """
 	
@@ -211,6 +216,7 @@ class TrainParameters(object):
 	def __init__(self,show=False):
 		""" Train Parameters Class """
 		
+		
 class MLP(object):
     """ Multi-Layer Perceptron Class """
     
@@ -293,6 +299,8 @@ class MLP(object):
     	self.input = input
     	self.target = target
     	self.trn_params = trn_params
+    	
+    	# propagate input in all layers
     	
     	
     	
