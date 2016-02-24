@@ -49,6 +49,7 @@ class InputLayer(object):
 	def GetOutput(self,input, show=False):
 		if show:
 			print "InputLayer: GetOutput Function"
+			print ""
 		
 					
 class HiddenLayer(object):
