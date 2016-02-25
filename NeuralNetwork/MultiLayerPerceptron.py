@@ -48,7 +48,10 @@ class InputLayer(object):
 	def GetOutput(self,input, show=False):
 		if show:
 			print "InputLayer: GetOutput Function"
-			
+		
+		# pre-process data
+		#input = theano.shared(input,name="input")
+		
 		return (
 		input if self.pre_function is None
 		else input
