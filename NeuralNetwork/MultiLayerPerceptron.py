@@ -3,9 +3,13 @@ import sys
 import timeit
 
 import numpy
+import random
 
 import theano
 import theano.tensor as T
+
+from sklearn.cross_validation import ShuffleSplit
+
 
 class InputLayer(object):
 	""" Input Layer Class """
@@ -243,20 +247,88 @@ class OutputLayer(object):
 		
 		
 class TrainParameters(object):
-	def __init__(self,show=False, perf_function='mse', l1reg=0.0, l2reg=0.0001, n_epochs=10,learning_rate=0.01):
-		""" Train Parameters Class """
+	def __init__(self, perf_function='mse', l1reg=0.0, l2reg=0.0001, n_epochs=10,learning_rate=0.01, batch_size=10, itrn=None, itst=None, ival=None, perc_trn=0.5, perc_tst=0.25, show=False):
+		""" Train Parameters Class 
+			
+			perf_function: Perfomance Function (MSE)
+			
+			l1reg: Size of L1 Regularization
+			
+			l2reg: Size of L2 Regularization
+			
+			n_epochs: Number of Epochs
+			
+			learning_rate: Learning Rate
+			
+			batches_per_epochs = Number of batches in a Epoch 
+			
+			itrn: Train Indeces
+			
+			itst: Test Indeces
+			
+			ival: Validation Indeces
+			
+			perc_trn: Percentage of Events randomly choose for Train (used only if itrn is not defined)
+			
+			perc_tst: Percentage of Events randomly choose for Test (used only if itst is not defined)
+			
+		"""
 		self.perf_function = perf_function
 		self.l1reg = l1reg
 		self.l2reg = l2reg
 		self.n_epochs = n_epochs
 		self.learning_rate = learning_rate
-
+		self.batch_size = batch_size
+			
+		self.itrn = itrn
+		self.itst = itst
+		self.ival = ival
+		
+		
+		if self.itrn is None:
+			self.perc_trn = perc_trn
+		else:
+			self.perc_trn = len(self.itrn)/(len(self.itrn)+len(self.itst)+len(self.ival))
+			
+		if self.itst is None:
+			self.perc_tst = perc_tst
+		else:
+			self.perc_tst = len(self.itst)/(len(self.itrn)+len(self.itst)+len(self.ival))
+		
+		if (self.perc_trn+self.perc_tst) > 1:
+			print "\n\n***** Percentage Mistake!!! ***** \n\n"
+		
+		if (self.perc_trn+self.perc_tst) is 1:
+			self.perc_val = self.perc_tst
+		else:
+			self.perc_val = 1-(self.perc_trn+self.perc_tst)
+		
 	def Show(self):
 		print "Performance Function: ", self.perf_function
 		print "L1 Regularization Value: ", self.l1reg
 		print "L2 Regularization Value: ", self.l2reg
 		print "Number of Epochs: ", self.n_epochs
 		print "Learning Rate: ", self.learning_rate
+		print "Batch Size: ", self.batch_size
+		print "Train Indeces: ", self.itrn
+		print "Test Indeces: ", self.itst
+		print "Validation Indeces: ", self.ival
+
+		print "Percentage of Train Events: ", (self.perc_trn if self.itrn is None
+												else float(len(self.itrn))/
+												(float(len(self.ival))+float(len(self.itst))
+												+float(len(self.itrn)))
+												)
+		print "Percentage of Test Events: ", (self.perc_tst if self.itst is None
+												else float(len(self.itst))/
+												(float(len(self.ival))+float(len(self.itst))
+												+float(len(self.itrn)))
+												)
+		print "Percentage of Validation Events: ", (self.perc_val if self.ival is None
+													else float(len(self.ival))/
+													(float(len(self.ival))+float(len(self.itst))
+													+float(len(self.itrn)))
+													)
 		
 		
 class MLP(object):
@@ -386,17 +458,47 @@ class MLP(object):
     	"""
     	
     	self.inputs = inputs
-    	self.targets = targets
+    	# check it (below)
+    	self.targets = targets.astype('int64')
+    	
+    	
+    	# Processing data to be in Mini_batch Format
     	
     	if trn_params is None:
     		self.trn_params = TrainParameters()
     	else:
     		self.trn_params = trn_params
+    		
     	
-    	 # allocate symbolic variables for the data
+    	print "Starting Train Process with the follow parameters:"
+    	self.trn_params.Show()
+    	
+    	# using Split from Sklearn
+    	
+    	ss = ShuffleSplit(len(targets), n_iter=1, test_size=trn_params.perc_tst)
+    	for train, test in ss:
+    		self.trn_params.itrn = train
+    		self.trn_params.itst = test
+    		self.trn_params.ival = test
+    	
+    	# Convert input variable to Theano mode
+    	trn_inputs  = theano.shared(self.inputs[self.trn_params.itrn], borrow=True)
+    	trn_targets = theano.shared(self.targets[self.trn_params.itrn], borrow=True)
+    	
+    	tst_inputs  = theano.shared(inputs[self.trn_params.itst], borrow=True)
+    	tst_targets = theano.shared(targets[self.trn_params.itst], borrow=True)
+    	
+    	val_inputs  = theano.shared(inputs[self.trn_params.ival], borrow=True)
+    	val_targets = theano.shared(targets[self.trn_params.ival], borrow=True)
+    	
+    	n_trn_batches = trn_inputs.get_value(borrow=True).shape[0]/self.trn_params.batch_size
+    	n_tst_batches = tst_inputs.get_value(borrow=True).shape[0]/self.trn_params.batch_size
+    	n_val_batches = val_inputs.get_value(borrow=True).shape[0]/self.trn_params.batch_size
+    	
+    	# allocate symbolic variables for the data
     	index = T.lscalar()  # index to a [mini]batch
     	sym_inputs  = T.matrix('sym_inputs')  # the data is presented as a symbolic variable
-    	sym_targets = T.matrix('sym_targets') # the target is presented as a symbolic variable
+    	sym_targets = T.ivector('sym_targets') # the target is presented as a symbolic variable
     	
     	
     	cost = (
@@ -424,10 +526,15 @@ class MLP(object):
     	for param, gparam in zip(self.params, gparams)
     	]
     	
-    	print "Starting Train Process with the follow parameters:"
-    	self.trn_params.Show()
-    	
     	# Creating Train Model, Test Model and Validation Model
-    	
-    	
+    	train_model = theano.function(
+        	inputs=[index],
+        	outputs=cost,
+        	updates=updates,
+        	givens={
+            	sym_inputs: trn_inputs[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size],
+            	sym_targets: trn_targets[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size]
+        	}
+    	)
+
     	
