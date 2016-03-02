@@ -192,7 +192,7 @@ class OutputLayer(object):
 		# Initializing Weights
 		
 		# `W` is initialized with `W_values` which is uniformely sampled
-        # from sqrt(-6./(n_in+n_hidden)) and sqrt(6./(n_in+n_hidden))
+		# from sqrt(-6./(n_in+n_hidden)) and sqrt(6./(n_in+n_hidden))
 		
 		if W is None:
 			W_values = numpy.asarray(rng.uniform(
@@ -247,7 +247,7 @@ class OutputLayer(object):
 		
 		
 class TrainParameters(object):
-	def __init__(self, perf_function='mse', l1reg=0.0, l2reg=0.0001, n_epochs=10,learning_rate=0.01, batch_size=10, itrn=None, itst=None, ival=None, perc_trn=0.5, perc_tst=0.25, show=False):
+	def __init__(self, perf_function='mse', l1reg=0.0, l2reg=0.0001, n_epochs=10, show_freq=1, show_precision=4, stop_criteria = 5, learning_rate=0.01, batch_size=10, itrn=None, itst=None, ival=None, perc_trn=0.5, perc_tst=0.25, show=False):
 		""" Train Parameters Class 
 			
 			perf_function: Perfomance Function (MSE)
@@ -257,6 +257,12 @@ class TrainParameters(object):
 			l2reg: Size of L2 Regularization
 			
 			n_epochs: Number of Epochs
+			
+			show_freq: Show Frequency in Training Process
+			
+			show_precision: Number of Decimals of Show Training
+			
+			stop_criteria: Number of Epoch of Stop Criteria
 			
 			learning_rate: Learning Rate
 			
@@ -277,6 +283,9 @@ class TrainParameters(object):
 		self.l1reg = l1reg
 		self.l2reg = l2reg
 		self.n_epochs = n_epochs
+		self.show_freq  = show_freq
+		self.show_precision = show_precision
+		self.stop_criteria = stop_criteria
 		self.learning_rate = learning_rate
 		self.batch_size = batch_size
 			
@@ -308,6 +317,9 @@ class TrainParameters(object):
 		print "L1 Regularization Value: ", self.l1reg
 		print "L2 Regularization Value: ", self.l2reg
 		print "Number of Epochs: ", self.n_epochs
+		print "Frequency of Show: ",self.show_freq
+		print "Show Precision: ",self.show_precision
+		print "Stop Epochs: ",self.stop_criteria
 		print "Learning Rate: ", self.learning_rate
 		print "Batch Size: ", self.batch_size
 		print "Train Indeces: ", self.itrn
@@ -330,6 +342,7 @@ class TrainParameters(object):
 													+float(len(self.itrn)))
 													)
 		
+
 		
 class MLP(object):
     """ Multi-Layer Perceptron Class """
@@ -459,7 +472,7 @@ class MLP(object):
     	
     	self.inputs = inputs
     	# check it (below)
-    	self.targets = targets.astype('int64')
+    	self.targets = targets
     	
     	
     	# Processing data to be in Mini_batch Format
@@ -482,14 +495,14 @@ class MLP(object):
     		self.trn_params.ival = test
     	
     	# Convert input variable to Theano mode
-    	trn_inputs  = theano.shared(self.inputs[self.trn_params.itrn], borrow=True)
-    	trn_targets = theano.shared(self.targets[self.trn_params.itrn], borrow=True)
+    	trn_inputs  = theano.shared(self.inputs[self.trn_params.itrn,:], borrow=True)
+    	trn_targets = theano.shared(self.targets[self.trn_params.itrn,:], borrow=True)
     	
-    	tst_inputs  = theano.shared(inputs[self.trn_params.itst], borrow=True)
-    	tst_targets = theano.shared(targets[self.trn_params.itst], borrow=True)
+    	tst_inputs  = theano.shared(inputs[self.trn_params.itst,:], borrow=True)
+    	tst_targets = theano.shared(targets[self.trn_params.itst,:], borrow=True)
     	
-    	val_inputs  = theano.shared(inputs[self.trn_params.ival], borrow=True)
-    	val_targets = theano.shared(targets[self.trn_params.ival], borrow=True)
+    	val_inputs  = theano.shared(inputs[self.trn_params.ival,:], borrow=True)
+    	val_targets = theano.shared(targets[self.trn_params.ival,:], borrow=True)
     	
     	n_trn_batches = trn_inputs.get_value(borrow=True).shape[0]/self.trn_params.batch_size
     	n_tst_batches = tst_inputs.get_value(borrow=True).shape[0]/self.trn_params.batch_size
@@ -498,11 +511,11 @@ class MLP(object):
     	# allocate symbolic variables for the data
     	index = T.lscalar()  # index to a [mini]batch
     	sym_inputs  = T.matrix('sym_inputs')  # the data is presented as a symbolic variable
-    	sym_targets = T.ivector('sym_targets') # the target is presented as a symbolic variable
+    	sym_targets = T.matrix('sym_targets') # the target is presented as a symbolic variable
     	
     	
     	cost = (
-    	self.Performance(sym_inputs, sym_targets,'mse')
+    	self.Performance(sym_inputs, sym_targets,trn_params.perf_function)
     	+ self.trn_params.l1reg*self.GetL1Reg() 
     	+ self.trn_params.l2reg*self.GetL2Reg()
     	)
@@ -527,14 +540,103 @@ class MLP(object):
     	]
     	
     	# Creating Train Model, Test Model and Validation Model
+	# train model
     	train_model = theano.function(
         	inputs=[index],
-        	outputs=cost,
+        	outputs=[cost],
         	updates=updates,
         	givens={
-            	sym_inputs: trn_inputs[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size],
-            	sym_targets: trn_targets[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size]
+            	sym_inputs: trn_inputs[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size,:],
+            	sym_targets: trn_targets[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size,:]
         	}
     	)
 
+    	# test model
+    	test_model = theano.function(
+        	inputs=[index],
+        	outputs=cost,
+        	givens={
+            	sym_inputs: tst_inputs[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size,:],
+            	sym_targets: tst_targets[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size,:]
+        	}
+    	)
+    	# test model
+    	val_model = theano.function(
+        	inputs=[index],
+        	outputs=cost,
+        	givens={
+            	sym_inputs: val_inputs[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size,:],
+            	sym_targets: val_targets[index * self.trn_params.batch_size: (index + 1) * self.trn_params.batch_size,:]
+        	}
+    	)
+
+
     	
+    	""" Train Process """
+    	print "\n\nTraining..."
+    	
+    	epoch = 0
+    	done_looping = False
+    	
+    	#set precision
+    	numpy_opt = numpy.get_printoptions()
+    	numpy.set_printoptions(precision=trn_params.show_precision)
+    	
+    	# Training Descriptor
+    	trn_desc = {}
+    	#trn_desc['perf'] = []
+    	trn_desc['perf'] = numpy.zeros([trn_params.n_epochs,1])
+    	trn_desc['tperf'] = numpy.zeros([trn_params.n_epochs,1])
+    	trn_desc['vperf'] = numpy.zeros([trn_params.n_epochs,1])
+    	
+    	# stop criteria
+    	best_val_cost = 9999
+    	best_epoch = -1
+    	best_mlp = []
+    	
+    	while (epoch < trn_params.n_epochs) and (not done_looping):
+	  trn_cost = numpy.zeros([n_trn_batches,1])
+	  grad_upd = numpy.zeros([n_trn_batches,1])
+	  tst_cost = numpy.zeros([n_tst_batches,1])
+	  val_cost = numpy.zeros([n_val_batches,1])
+	  
+	  for minibatch_index in xrange(n_trn_batches):
+	    [trn_cost[minibatch_index]] = train_model(minibatch_index)
+	    
+	  for minibatch_index in xrange(n_tst_batches):
+	    tst_cost[minibatch_index] = test_model(minibatch_index)
+
+	  for minibatch_index in xrange(n_val_batches):
+	    val_cost[minibatch_index] = val_model(minibatch_index)
+	    
+	  trn_desc['perf'][epoch] = numpy.mean(trn_cost)
+	  trn_desc['tperf'][epoch] = numpy.mean(tst_cost)
+	  trn_desc['vperf'][epoch] = numpy.mean(val_cost)
+	  
+	  epoch = epoch + 1
+	  
+	  if numpy.mean(val_cost) < best_val_cost:
+	     best_epoch = epoch
+	     best_mlp = self
+	     best_val_cost = numpy.mean(val_cost)
+	     
+	  if (epoch - best_epoch) > trn_params.stop_criteria:
+	      done_looping = True
+	  
+	  #print "Cost: ", minibatch_avg_cost
+	  if float(epoch)%float(trn_params.show_freq) == 0:
+	    print ("Epoch %04i - trn Cost: %02.3f - tst Cost: %02.3f - val Cost: %02.3f - Best Epoch: %04i - val Cost: %02.3f" % 
+	    (epoch, numpy.mean(trn_cost), numpy.mean(tst_cost), numpy.mean(val_cost), best_epoch, best_val_cost))
+	    
+	if not(float(epoch)%float(trn_params.show_freq) == 0):
+	  print "Final Epoch ", epoch," - trn Cost: ",numpy.mean(trn_cost) 
+	
+	# return to point before train
+	numpy.set_printoptions(precision=numpy_opt['precision'])
+	
+	trn_desc['best_epoch'] = best_epoch
+	trn_desc['best_val_cost'] = best_val_cost
+	
+	return trn_desc
+	  
+	
