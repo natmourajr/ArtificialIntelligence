@@ -1,4 +1,4 @@
 .DS_Store
 *~
 *.pyc
-tutorials/.pynb_checkpoints
+tutorials/.ipynb_checkpoints
