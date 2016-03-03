@@ -9,12 +9,13 @@ import theano
 import theano.tensor as T
 
 from sklearn.cross_validation import ShuffleSplit
+from sklearn import preprocessing
 
 
 class InputLayer(object):
 	""" Input Layer Class """
 	
-	def __init__(self, n_in, n_out, pre_function=None, show=False):
+	def __init__(self, n_in, n_out, pre_function='mapstd', show=False):
 
 		""" 
     	Params:
@@ -40,6 +41,7 @@ class InputLayer(object):
 		self.n_in = n_in
 		self.n_out = n_out
 		self.pre_function = pre_function
+		self.scaler = None
 		
 	def Show(self):
 		print ""
@@ -49,6 +51,16 @@ class InputLayer(object):
 		print "Pre-Processing Function: ", self.pre_function
 		print ""
 		
+	def Train(self, input, show=False):
+		if show: print "Input Layer Train - ", self.pre_function
+		
+		if self.pre_function == 'mapstd':
+			self.scaler = preprocessing.StandardScaler().fit(input)
+		if self.pre_function == 'mapminmax':
+			self.scaler = preprocessing.MinMaxScaler().fit(input)
+		if self.pre_function is None:
+			self.scaler = None
+	  
 	def GetOutput(self,input, show=False):
 		if show:
 			print "InputLayer: GetOutput Function"
@@ -57,8 +69,8 @@ class InputLayer(object):
 		#input = theano.shared(input,name="input")
 		
 		return (
-		input if self.pre_function is None
-		else input
+		input if self.scaler is None
+		else self.scaler.transform(input)
 		)
 		
 					
@@ -385,7 +397,7 @@ class MLP(object):
     	self.n_hidden = n_hidden
     	self.n_out = n_out
     	
-    	self.InputLayer = InputLayer(n_in, n_in, pre_function=None, show=show)
+    	self.InputLayer = InputLayer(n_in, n_in, pre_function='mapstd', show=show)
     	
     	self.HiddenLayer = {}
     	
@@ -421,17 +433,17 @@ class MLP(object):
     	if show:
     		print "MLP: GetOutput Function"
     		
-    	InputLayerOutput = self.InputLayer.GetOutput(input, show)
+    	InputLayerOutput = self.InputLayer.GetOutput(input, show=show)
     	
     	HiddenLayerOutput = {}
     	
     	for i in range(len(self.n_hidden)):
     		if i == 0:
-    			HiddenLayerOutput[i] = self.HiddenLayer[i].GetOutput(InputLayerOutput, show)
+    			HiddenLayerOutput[i] = self.HiddenLayer[i].GetOutput(InputLayerOutput, show=show)
     		else:
-    			HiddenLayerOutput[i] = self.HiddenLayer[i].GetOutput(HiddenLayerOutput[i-1], show)
+    			HiddenLayerOutput[i] = self.HiddenLayer[i].GetOutput(HiddenLayerOutput[i-1], show=show)
     	
-    	return self.OutputLayer.GetOutput(HiddenLayerOutput[len(self.n_hidden)-1],show)
+    	return self.OutputLayer.GetOutput(HiddenLayerOutput[len(self.n_hidden)-1],show=show)
     
     def GetL1Reg(self):
     	l1_value = 0
@@ -467,10 +479,13 @@ class MLP(object):
     	
     	trn_params: Object of trn_params class
     	desc: Same as TrainParameters Class
-    	
     	"""
     	
+    	self.InputLayer.Train(inputs)
+    	inputs = self.InputLayer.GetOutput(inputs)
     	self.inputs = inputs
+    	
+    	
     	# check it (below)
     	self.targets = targets
     	
