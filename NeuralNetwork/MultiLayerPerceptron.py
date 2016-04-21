@@ -3,6 +3,8 @@ import sys
 import timeit
 
 import numpy
+import numpy as np
+
 import random
 
 import theano
@@ -135,6 +137,8 @@ class HiddenLayer(object):
 		self.W = W
 		self.W_init = W_values
 		
+		self.W_freeze = np.ones_like(W_values)
+		
 		
 		# 'b' is initialized with 'b_values' which is a zero-vector
 		
@@ -142,9 +146,12 @@ class HiddenLayer(object):
 			b_values = numpy.zeros((n_out,), dtype=theano.config.floatX)
 			b = theano.shared(value=b_values, name='b', borrow=True)
 		self.b = b
+		self.b_init = b_values
+		
+		self.b_freeze = np.ones_like(b_values)
 		
 		self.params = [self.W, self.b]
-		
+		self.freeze = [self.W_freeze, self.b_freeze]
 		
 	def Show(self):
 		print ""
@@ -228,6 +235,8 @@ class OutputLayer(object):
 		self.W = W
 		self.W_init = W_values
 		
+		self.W_freeze = np.ones_like(W_values)
+		
 		
 		# 'b' is initialized with 'b_values' which is a zero-vector
 		
@@ -235,8 +244,12 @@ class OutputLayer(object):
 			b_values = numpy.zeros((n_out,), dtype=theano.config.floatX)
 			b = theano.shared(value=b_values, name='b', borrow=True)
 		self.b = b
+		self.b_init = b_values
+		
+		self.b_freeze = np.ones_like(b_values)
 		
 		self.params = [self.W, self.b]
+		self.freeze = [self.W_freeze, self.b_freeze]
 		
 	def Show(self):
 		print ""
@@ -416,6 +429,17 @@ class MLP(object):
     	
     	self.params = params
 
+    	
+    	freeze = []
+    	for i in range(len(n_hidden)):
+    		freeze = freeze + self.HiddenLayer[i].freeze
+    	freeze = freeze + self.OutputLayer.freeze
+    	
+    	self.freeze = freeze
+
+    	
+    	
+    	
     def Show(self):
     	""" This function show all relevant features of Neural Network Obj """
     
